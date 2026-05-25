@@ -1,0 +1,1004 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>CAMRECORD</title>
+<style>
+/* ═══════════════════════════════════════════════════════════════════
+   BASE / TOKENS
+═══════════════════════════════════════════════════════════════════ */
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+:root {
+  --bg: #000;
+  --bg-side: #0a0a0a;
+  --bg-card: #151515;
+  --border: #252525;
+  --accent: #c8ff00;
+  --text: #ffffff;
+  --muted: #888;
+  --mono: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+}
+html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--mono); overflow: hidden; }
+#app { display: flex; flex-direction: column; height: 100dvh; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   DESKTOP HEADER
+═══════════════════════════════════════════════════════════════════ */
+#header {
+  display: flex; align-items: center; gap: 16px;
+  padding: 10px 20px; border-bottom: 1px solid var(--border);
+  background: var(--bg-side); flex-shrink: 0; flex-wrap: wrap; min-height: 52px;
+  font-size: 13px;
+}
+#logo { font-size: 11px; letter-spacing: 4px; color: var(--accent); font-weight: 900; white-space: nowrap; }
+#storage-info { display: flex; align-items: center; gap: 8px; padding-left: 16px; border-left: 1px solid var(--border); }
+.storage-label { font-size: 10px; color: var(--muted); text-transform: uppercase; white-space: nowrap; }
+.progress-bg { width: 80px; height: 5px; background: #222; border-radius: 3px; overflow: hidden; }
+.progress-fill { height: 100%; background: var(--accent); transition: width 1s; border-radius: 3px; }
+#storage-pct { font-size: 11px; font-weight: bold; color: var(--accent); min-width: 32px; }
+#clock { font-size: 13px; color: var(--text); white-space: nowrap; }
+
+#view-toggle { display: flex; gap: 2px; padding-left: 16px; border-left: 1px solid var(--border); }
+.view-btn {
+  background: var(--bg-card); border: 1px solid var(--border); color: var(--muted);
+  font-family: var(--mono); font-size: 11px; padding: 6px 12px; cursor: pointer;
+  text-transform: uppercase; letter-spacing: 1px; transition: 0.15s;
+}
+.view-btn:hover { color: var(--text); border-color: #444; }
+.view-btn.active { background: rgba(200,255,0,0.1); border-color: var(--accent); color: var(--accent); font-weight: bold; }
+
+#filter-bar { display: flex; align-items: center; gap: 8px; margin-left: auto; flex-wrap: wrap; }
+.filter-group { display: flex; align-items: center; gap: 8px; background: var(--bg-card); padding: 6px 12px; border: 1px solid var(--border); }
+.filter-label { font-size: 9px; color: var(--accent); text-transform: uppercase; font-weight: bold; }
+.filter-input { background: transparent; border: none; color: var(--text); font-family: var(--mono); font-size: 12px; outline: none; width: 145px; }
+.filter-input::-webkit-calendar-picker-indicator { filter: invert(1); cursor: pointer; }
+.action-btn { background: var(--bg-card); border: 1px solid var(--border); color: var(--text); font-size: 10px; padding: 8px 14px; cursor: pointer; text-transform: uppercase; font-weight: bold; transition: 0.15s; }
+.action-btn:hover { border-color: var(--accent); color: var(--accent); }
+#btn-filter-apply { background: var(--accent); color: #000; border-color: var(--accent); }
+#btn-filter-apply:hover { background: #fff; }
+
+/* ── hamburger — hidden on desktop ── */
+#hamburger { display: none; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   DESKTOP LAYOUT
+═══════════════════════════════════════════════════════════════════ */
+#main { display: flex; flex: 1; overflow: hidden; }
+
+/* ── sidebar ── */
+#sidebar {
+  width: 280px; border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  background: var(--bg-side); flex-shrink: 0; overflow: hidden;
+}
+.section-label { padding: 12px 20px 6px; font-size: 10px; font-weight: bold; color: var(--muted); text-transform: uppercase; letter-spacing: 2px; flex-shrink: 0; }
+#cam-list { padding: 0 10px 6px; flex-shrink: 0; }
+.cam-item { padding: 9px 14px; cursor: pointer; display: flex; align-items: center; gap: 10px; margin-bottom: 2px; transition: 0.15s; color: var(--muted); border: 1px solid transparent; }
+.cam-item:hover { background: var(--bg-card); color: var(--text); }
+.cam-item.active { background: rgba(200,255,0,0.08); border-color: var(--accent); color: var(--accent); }
+.cam-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+.cam-name { flex: 1; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; }
+.cam-check {
+  width: 16px; height: 16px; border: 1px solid var(--border); background: transparent;
+  display: none; align-items: center; justify-content: center; flex-shrink: 0;
+  font-size: 10px; color: var(--accent); cursor: pointer; transition: 0.15s;
+}
+.cam-check.checked { background: var(--accent); color: #000; border-color: var(--accent); }
+body.grid-mode .cam-check { display: flex; }
+
+#file-list { flex: 1; overflow-y: auto; }
+#file-list::-webkit-scrollbar { width: 4px; }
+#file-list::-webkit-scrollbar-thumb { background: var(--border); }
+.date-group-header { position: sticky; top: 0; background: #0d0d0d; padding: 8px 20px; font-size: 10px; font-weight: 900; color: var(--accent); border-bottom: 1px solid var(--border); z-index: 10; letter-spacing: 1px; }
+.date-sub { font-size: 9px; color: var(--muted); font-weight: normal; margin-top: 1px; }
+.file-item { padding: 10px 20px; cursor: pointer; border-bottom: 1px solid #0f0f0f; display: flex; align-items: baseline; justify-content: space-between; color: #bbb; transition: 0.1s; }
+.file-item:hover { background: var(--bg-card); color: var(--text); }
+.file-item.active { background: var(--accent); color: #000; font-weight: 800; }
+.file-time-big { font-size: 16px; }
+.file-dur { font-size: 10px; opacity: 0.6; }
+.file-item.active .file-dur { opacity: 0.5; }
+  /* ── live item ── */
+  .file-item.live-item { border-left: 3px solid #ff4444; padding-left: 17px; }
+  .file-item.live-item .file-time-big { color: #ff4444; }
+  .file-item.live-item.active { background: #ff4444; color: #fff; border-left-color: #fff; }
+  .live-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #ff4444; margin-right: 6px; animation: liveblink 1s infinite; vertical-align: middle; }
+  .file-item.live-item.active .live-dot { background: #fff; }
+  @keyframes liveblink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+#empty-state { padding: 30px 20px; color: var(--muted); line-height: 2; font-size: 12px; }
+#file-count { font-size: 10px; color: var(--muted); padding: 5px 20px; flex-shrink: 0; border-bottom: 1px solid var(--border); }
+
+/* ═══════════════════════════════════════════════════════════════════
+   PLAYER AREA
+═══════════════════════════════════════════════════════════════════ */
+#player-wrap { flex: 1; position: relative; overflow: hidden; cursor: none; }
+#player-wrap.controls-visible { cursor: default; }
+
+#single-view { width: 100%; height: 100%; position: relative; background: #000; }
+#single-view video { width: 100%; height: 100%; object-fit: contain; display: block; }
+
+/* desktop 2×2 grid */
+#grid-view { width: 100%; height: 100%; display: none; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 2px; background: #111; }
+body.grid-mode #grid-view { display: grid; }
+body.grid-mode #single-view { display: none; }
+
+.grid-cell { position: relative; background: #000; overflow: hidden; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.grid-cell video { width: 100%; height: 100%; object-fit: contain; display: block; }
+.grid-cell-label { position: absolute; top: 8px; left: 8px; background: rgba(0,0,0,0.7); color: var(--accent); font-size: 11px; padding: 3px 8px; text-transform: uppercase; letter-spacing: 1px; pointer-events: none; }
+.grid-cell-ts { position: absolute; top: 28px; left: 8px; background: rgba(0,0,0,0.6); color: #ccc; font-size: 10px; padding: 2px 8px; pointer-events: none; }
+.grid-cell-empty { color: #333; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; border: 1px dashed #1a1a1a; }
+.grid-cell.slot-active { outline: 2px solid var(--accent); outline-offset: -2px; }
+.grid-cell-fs { position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,0.6); color: #888; font-size: 10px; padding: 3px 6px; cursor: pointer; pointer-events: all; border: 1px solid #333; transition: 0.15s; }
+.grid-cell-fs:hover { color: var(--accent); border-color: var(--accent); }
+
+/* HUD */
+.hud { position: absolute; pointer-events: none; z-index: 50; }
+#speed-badge { top: 14px; right: 14px; background: var(--accent); color: #000; padding: 4px 10px; font-weight: 900; font-size: 13px; display: none; }
+#cam-badge   { top: 14px; left: 14px; color: var(--accent); font-size: 14px; font-weight: bold; text-transform: uppercase; background: rgba(0,0,0,0.65); padding: 4px 10px; display: none; }
+#ts-badge    { top: 44px; left: 14px; color: #fff; font-size: 12px; background: rgba(0,0,0,0.65); padding: 4px 10px; display: none; }
+#seek-flash  { top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 26px; color: var(--accent); background: rgba(0,0,0,0.7); padding: 12px 24px; opacity: 0; transition: opacity 0.2s; }
+
+/* ── controls overlay ── */
+#controls {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  background: rgba(0,0,0,0.88); padding: 14px 20px; z-index: 100;
+  opacity: 0; transition: opacity 0.3s; pointer-events: none;
+}
+#controls.visible { opacity: 1; pointer-events: all; }
+#progress { width: 100%; height: 5px; cursor: pointer; accent-color: var(--accent); margin-bottom: 12px; display: block; background: rgba(255,255,255,0.1); border-radius: 3px; appearance: none; }
+#ctrl-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.ctrl-btn { background: var(--bg-card); border: 1px solid var(--border); color: var(--text); padding: 8px 14px; cursor: pointer; font-family: var(--mono); font-size: 11px; font-weight: bold; transition: 0.15s; }
+.ctrl-btn:hover { border-color: var(--accent); color: var(--accent); }
+#time-display { font-size: 13px; color: var(--text); min-width: 130px; text-align: center; }
+#sync-status { font-size: 10px; color: var(--muted); }
+#speed-controls { display: flex; gap: 2px; margin-left: auto; }
+.spd-btn { background: #111; border: 1px solid var(--border); color: var(--muted); padding: 6px 10px; cursor: pointer; font-size: 11px; font-family: var(--mono); transition: 0.15s; }
+.spd-btn.active { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 900; }
+#keys { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.06); }
+.key-hint { font-size: 10px; color: #444; }
+.key-hint kbd { background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12); padding: 1px 5px; font-family: var(--mono); font-size: 10px; color: #666; }
+
+.chrome-hidden #header { opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   MOBILE  (≤ 600px)
+═══════════════════════════════════════════════════════════════════ */
+@media (max-width: 600px) {
+
+  /* ── mobile header ── */
+  #header {
+    padding: 10px 14px; gap: 10px; flex-wrap: nowrap;
+    min-height: 48px; font-size: 12px; position: relative; z-index: 200;
+  }
+  #logo { font-size: 10px; letter-spacing: 3px; }
+  #storage-info { border-left: none; padding-left: 0; gap: 6px; }
+  .storage-label { display: none; }
+  .progress-bg { width: 50px; }
+  #storage-pct { font-size: 10px; min-width: 28px; }
+  #clock { font-size: 11px; }
+  #view-toggle { padding-left: 0; border-left: none; }
+  .view-btn { padding: 5px 8px; font-size: 10px; }
+  #filter-bar { display: none !important; } /* moved into drawer */
+
+  /* ── hamburger ── */
+  #hamburger {
+    display: flex; flex-direction: column; justify-content: center; align-items: center;
+    gap: 4px; width: 36px; height: 36px; cursor: pointer; margin-left: auto;
+    background: none; border: 1px solid var(--border); flex-shrink: 0;
+  }
+  #hamburger span { display: block; width: 18px; height: 2px; background: var(--text); border-radius: 1px; transition: 0.2s; }
+
+  /* ── drawer ── */
+  #sidebar {
+    position: fixed; top: 0; left: 0; bottom: 0;
+    width: 85vw; max-width: 320px;
+    z-index: 500; transform: translateX(-105%);
+    transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
+    border-right: 1px solid var(--border);
+  }
+  #sidebar.open { transform: translateX(0); }
+
+  /* drawer header row */
+  #drawer-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+  }
+  #drawer-title { font-size: 11px; letter-spacing: 3px; color: var(--accent); font-weight: 900; }
+  #drawer-close { background: none; border: 1px solid var(--border); color: var(--muted); font-size: 16px; width: 32px; height: 32px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+
+  /* drawer filter section */
+  #drawer-filter { padding: 10px 14px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  #drawer-filter .filter-group { flex-direction: column; align-items: flex-start; gap: 4px; background: var(--bg-card); padding: 8px 10px; border: 1px solid var(--border); margin-bottom: 6px; }
+  #drawer-filter .filter-input { width: 100%; font-size: 14px; color: var(--text); }
+  #drawer-filter .filter-label { font-size: 9px; }
+  #drawer-filter .filter-actions { display: flex; gap: 6px; margin-top: 4px; }
+  #drawer-filter .action-btn { flex: 1; text-align: center; padding: 10px 8px; font-size: 11px; }
+
+  /* overlay scrim */
+  #drawer-scrim {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+    z-index: 499; backdrop-filter: blur(2px);
+  }
+  #drawer-scrim.open { display: block; }
+
+  /* ── mobile main — vertical column ── */
+  #main { flex-direction: column; overflow: hidden; }
+
+  /* player stack takes full width, height auto from stacked videos */
+  #player-wrap { flex: 1; width: 100%; position: relative; overflow: hidden; cursor: default; }
+
+  /* single view full height */
+  #single-view { width: 100%; height: 100%; }
+
+  /* mobile grid = vertical stack up to 3 */
+  #grid-view {
+    display: none;
+    grid-template-columns: 1fr !important;
+    grid-template-rows: repeat(3, 1fr);
+    gap: 2px;
+  }
+  body.grid-mode #grid-view { display: grid; }
+  body.grid-mode #single-view { display: none; }
+
+  /* hide slot-3 on mobile (max 3) */
+  #slot-3 { display: none !important; }
+
+  .grid-cell-label { font-size: 10px; padding: 2px 6px; }
+  .grid-cell-ts { font-size: 9px; top: 22px; }
+  .grid-cell-fs { font-size: 9px; padding: 2px 5px; }
+
+  /* ── mobile controls ── */
+  #controls { padding: 10px 14px 12px; }
+  #progress { height: 6px; margin-bottom: 10px; }
+  #ctrl-row { gap: 8px; }
+  .ctrl-btn { padding: 10px 10px; font-size: 12px; }
+  #time-display { font-size: 12px; min-width: 100px; }
+  #speed-controls { gap: 1px; }
+  .spd-btn { padding: 8px 8px; font-size: 11px; }
+  #keys { display: none; } /* no keyboard hints on mobile */
+
+  /* bigger seek flash */
+  #seek-flash { font-size: 32px; padding: 14px 28px; }
+
+  /* hide desktop-only elements */
+  #cam-badge, #ts-badge { font-size: 11px; padding: 3px 7px; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ── HEADER ── -->
+  <div id="header">
+    <div id="logo">CAMRECORD</div>
+
+    <div id="storage-info">
+      <span class="storage-label">/bigboi</span>
+      <div class="progress-bg"><div class="progress-fill" id="storage-bar" style="width:0%"></div></div>
+      <span id="storage-pct">--%</span>
+    </div>
+
+    <div id="clock">--:--:--</div>
+
+    <div id="view-toggle">
+      <button class="view-btn active" id="btn-single">&#9632; Single</button>
+      <button class="view-btn" id="btn-grid">&#9638; Grid</button>
+    </div>
+
+    <!-- desktop filter (hidden on mobile) -->
+    <div id="filter-bar">
+      <div class="filter-group">
+        <span class="filter-label">From</span>
+        <input class="filter-input" type="datetime-local" id="filter-from">
+      </div>
+      <div class="filter-group">
+        <span class="filter-label">To</span>
+        <input class="filter-input" type="datetime-local" id="filter-to">
+      </div>
+      <button class="action-btn" id="btn-filter-apply">Apply</button>
+      <button class="action-btn" id="btn-filter-clear">Reset</button>
+    </div>
+
+    <!-- hamburger (mobile only) -->
+    <button id="hamburger" aria-label="Menu">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+
+  <!-- ── DRAWER SCRIM ── -->
+  <div id="drawer-scrim"></div>
+
+  <!-- ── MAIN ── -->
+  <div id="main">
+
+    <!-- SIDEBAR / DRAWER -->
+    <div id="sidebar">
+      <!-- drawer header (mobile only, hidden on desktop via CSS) -->
+      <div id="drawer-header" style="display:none">
+        <span id="drawer-title">MENU</span>
+        <button id="drawer-close">✕</button>
+      </div>
+
+      <!-- mobile filter (inside drawer) -->
+      <div id="drawer-filter" style="display:none">
+        <div class="filter-group">
+          <span class="filter-label">From</span>
+          <input class="filter-input" type="datetime-local" id="m-filter-from">
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">To</span>
+          <input class="filter-input" type="datetime-local" id="m-filter-to">
+        </div>
+        <div class="filter-actions">
+          <button class="action-btn" id="m-btn-apply" style="background:var(--accent);color:#000;border-color:var(--accent)">Apply</button>
+          <button class="action-btn" id="m-btn-clear">Reset</button>
+        </div>
+      </div>
+
+      <div class="section-label">Devices</div>
+      <div id="cam-list"></div>
+      <div class="section-label">History</div>
+      <div id="file-count"></div>
+      <div id="file-list"><div id="empty-state">Select a camera...</div></div>
+    </div>
+
+    <!-- PLAYER -->
+    <div id="player-wrap">
+      <div id="single-view">
+        <video id="video" preload="auto" playsinline></video>
+        <div id="cam-badge" class="hud"></div>
+        <div id="speed-badge" class="hud">x1</div>
+        <div id="ts-badge" class="hud"></div>
+        <div id="seek-flash" class="hud"></div>
+      </div>
+
+      <div id="grid-view">
+        <div class="grid-cell" id="slot-0"><div class="grid-cell-empty">SLOT 1</div></div>
+        <div class="grid-cell" id="slot-1"><div class="grid-cell-empty">SLOT 2</div></div>
+        <div class="grid-cell" id="slot-2"><div class="grid-cell-empty">SLOT 3</div></div>
+        <div class="grid-cell" id="slot-3"><div class="grid-cell-empty">SLOT 4</div></div>
+      </div>
+
+      <!-- shared controls overlay -->
+      <div id="controls">
+        <input type="range" id="progress" min="0" max="1000" value="0">
+        <div id="ctrl-row">
+          <button class="ctrl-btn" id="btn-prev">&#9664;&#9664;</button>
+          <button class="ctrl-btn" id="btn-play" style="min-width:80px">&#9654; PLAY</button>
+          <button class="ctrl-btn" id="btn-next">&#9654;&#9654;</button>
+          <div id="time-display">00:00 / 00:00</div>
+          <div id="sync-status"></div>
+          <div id="speed-controls">
+            <button class="spd-btn active" data-speed="1">1x</button>
+            <button class="spd-btn" data-speed="2">2x</button>
+            <button class="spd-btn" data-speed="4">4x</button>
+            <button class="spd-btn" data-speed="8">8x</button>
+            <button class="spd-btn" data-speed="16">16x</button>
+            <button class="spd-btn" data-speed="32">32x</button>
+          </div>
+        </div>
+        <div id="keys">
+          <span class="key-hint"><kbd>space</kbd> play/pause</span>
+          <span class="key-hint"><kbd>←</kbd><kbd>→</kbd> ±10s</span>
+          <span class="key-hint"><kbd>shift</kbd>+<kbd>←</kbd><kbd>→</kbd> ±3s</span>
+          <span class="key-hint"><kbd>↑</kbd><kbd>↓</kbd> clip</span>
+          <span class="key-hint"><kbd>shift</kbd>+<kbd>↑</kbd><kbd>↓</kbd> camera</span>
+          <span class="key-hint"><kbd>+</kbd><kbd>-</kbd> speed</span>
+          <span class="key-hint"><kbd>f</kbd> fullscreen</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────────────────────────────
+// Mobile detection & init
+// ─────────────────────────────────────────────────────────────────────────────
+const IS_MOBILE = window.matchMedia('(max-width: 600px)').matches;
+
+if (IS_MOBILE) {
+  // Show mobile-only elements
+  document.getElementById('drawer-header').style.display = 'flex';
+  document.getElementById('drawer-filter').style.display = 'block';
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Drawer (mobile sidebar)
+// ─────────────────────────────────────────────────────────────────────────────
+const sidebar = document.getElementById('sidebar');
+const scrim   = document.getElementById('drawer-scrim');
+
+function openDrawer() {
+  sidebar.classList.add('open');
+  scrim.classList.add('open');
+}
+function closeDrawer() {
+  sidebar.classList.remove('open');
+  scrim.classList.remove('open');
+}
+
+document.getElementById('hamburger').onclick = openDrawer;
+document.getElementById('drawer-close').onclick = closeDrawer;
+scrim.onclick = closeDrawer;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// State
+// ─────────────────────────────────────────────────────────────────────────────
+const SPEEDS       = [1,2,4,8,16,32];
+const PAGE_LOAD_TIME = Date.now();
+const LIVE_PORT = 8080;
+const CUTOFF_MS    = 15 * 60 * 1000;
+const SYNC_TOL     = 3;
+const DAYS         = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const MAX_GRID     = IS_MOBILE ? 3 : 4;
+
+let currentSpeed   = 1;
+let currentCam     = null;
+let camNames       = [];
+let camFilesCache  = {};
+let allFiles       = [];
+let filteredFiles  = [];
+let currentFileIdx = -1;
+let isGridMode     = false;
+let hideTimer      = null;
+let seekFlashTimer = null;
+let gridSlots      = [null,null,null,null];
+let isLiveMode     = false;
+// liveStreams: cam -> { video (hidden), ms, reader }
+// All streams pre-connected on load, kept alive in background
+const liveStreams = {};
+let gridVideos     = [null,null,null,null];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DOM
+// ─────────────────────────────────────────────────────────────────────────────
+const video      = document.getElementById('video');
+const btnPlay    = document.getElementById('btn-play');
+const fileList   = document.getElementById('file-list');
+const fileCount  = document.getElementById('file-count');
+const camList    = document.getElementById('cam-list');
+const controls   = document.getElementById('controls');
+const playerWrap = document.getElementById('player-wrap');
+const app        = document.getElementById('app');
+const seekFlash  = document.getElementById('seek-flash');
+const syncStatus = document.getElementById('sync-status');
+const storageBar = document.getElementById('storage-bar');
+const storagePct = document.getElementById('storage-pct');
+
+// filter inputs — desktop & mobile share logic via these refs
+function filterFromVal() { return IS_MOBILE ? document.getElementById('m-filter-from').value : document.getElementById('filter-from').value; }
+function filterToVal()   { return IS_MOBILE ? document.getElementById('m-filter-to').value   : document.getElementById('filter-to').value;   }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Autohide controls
+// ─────────────────────────────────────────────────────────────────────────────
+function showControls() {
+  controls.classList.add('visible');
+  if (!IS_MOBILE) playerWrap.classList.add('controls-visible');
+  app.classList.remove('chrome-hidden');
+  clearTimeout(hideTimer);
+  hideTimer = setTimeout(() => {
+    const pv = isGridMode ? gridVideos[0] : video;
+    if (pv && !pv.paused) {
+      controls.classList.remove('visible');
+      if (!IS_MOBILE) playerWrap.classList.remove('controls-visible');
+      if (!IS_MOBILE) app.classList.add('chrome-hidden');
+    }
+  }, 3000);
+}
+
+playerWrap.addEventListener(IS_MOBILE ? 'touchstart' : 'mousemove', showControls, {passive:true});
+playerWrap.addEventListener('click', e => {
+  if (e.target.closest('#controls')) return;
+  if (!controls.classList.contains('visible')) { showControls(); return; }
+  const cell = e.target.closest('.grid-cell');
+  if (cell && isGridMode) { setActiveGridSlot(parseInt(cell.id.replace('slot-',''))); return; }
+  if (!IS_MOBILE) togglePlay();
+});
+controls.addEventListener('mouseenter', () => clearTimeout(hideTimer));
+controls.addEventListener('mouseleave', () => {
+  hideTimer = setTimeout(() => {
+    const pv = isGridMode ? gridVideos[0] : video;
+    if (pv && !pv.paused) controls.classList.remove('visible');
+  }, 3000);
+});
+showControls();
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Clock + storage
+// ─────────────────────────────────────────────────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clock').textContent =
+    IS_MOBILE
+      ? now.toTimeString().slice(0,5)
+      : now.toLocaleDateString('sv') + ' ' + now.toLocaleTimeString('en-GB');
+}
+updateClock(); setInterval(updateClock, 1000);
+
+async function updateStorage() {
+  try {
+    const r = await fetch('/api/disk');
+    if (!r.ok) throw new Error();
+    const d = await r.json();
+    const pct = Math.round(d.used_pct);
+    storageBar.style.width = pct + '%';
+    const color = pct >= 90 ? '#ff4444' : pct >= 75 ? '#ffaa00' : 'var(--accent)';
+    storageBar.style.background = color;
+    storagePct.style.color = color;
+    storagePct.textContent = pct + '% — ' + (d.free || '');
+  } catch(e) { storagePct.textContent = '--'; }
+}
+updateStorage(); setInterval(updateStorage, 30000);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Seek flash
+// ─────────────────────────────────────────────────────────────────────────────
+function flashSeek(label) {
+  seekFlash.textContent = label;
+  seekFlash.style.opacity = 1;
+  clearTimeout(seekFlashTimer);
+  seekFlashTimer = setTimeout(() => seekFlash.style.opacity = 0, 700);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Filename parsing
+// ─────────────────────────────────────────────────────────────────────────────
+function parseFilename(name) {
+  const m = name.match(/^(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})/);
+  if (!m) return new Date(0);
+  return new Date(`${m[1]}T${m[2]}:${m[3]}:${m[4]}`);
+}
+function dayKey(d) { return d.toLocaleDateString('sv'); }
+function friendlyDay(d) {
+  const today = dayKey(new Date()), yest = dayKey(new Date(Date.now()-86400000)), key = dayKey(d);
+  if (key === today) return 'TODAY';
+  if (key === yest)  return 'YESTERDAY';
+  if (Math.floor((Date.now()-d.getTime())/86400000) < 7) return DAYS[d.getDay()].toUpperCase();
+  return null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Default filters
+// ─────────────────────────────────────────────────────────────────────────────
+function setDefaultFilters() {
+  const fmt = d => {
+    const p = n => String(n).padStart(2,'0');
+    return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+  };
+  const start = new Date(); start.setMonth(start.getMonth()-1); start.setHours(0,0,0,0);
+  const end   = new Date(); end.setDate(end.getDate()+1);       end.setHours(0,0,0,0);
+  const v = fmt(start), e = fmt(end);
+  ['filter-from','m-filter-from'].forEach(id => { const el=document.getElementById(id); if(el) el.value=v; });
+  ['filter-to','m-filter-to'].forEach(id => { const el=document.getElementById(id); if(el) el.value=e; });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Cameras
+// ─────────────────────────────────────────────────────────────────────────────
+async function loadCameras() { // returns promise
+  try {
+    const r = await fetch('/api/cameras');
+    const d = await r.json();
+    const cams = d.cameras;
+    camNames = cams;
+    renderCamList(cams);
+    if (cams.length) selectCam(cams[0]);
+  } catch(e) { console.error(e); }
+}
+
+function renderCamList(cams) {
+  camList.innerHTML = '';
+  cams.forEach(cam => {
+    const el = document.createElement('div');
+    el.className = 'cam-item'; el.id = 'cam-item-'+cam;
+    el.innerHTML = `<div class="cam-dot"></div><span class="cam-name">${cam}</span><div class="cam-check" id="check-${cam}">✓</div>`;
+    el.querySelector('.cam-name').onclick = e => {
+      e.stopPropagation(); selectCam(cam);
+      if (IS_MOBILE) closeDrawer();
+    };
+    el.querySelector('.cam-check').onclick = e => { e.stopPropagation(); toggleGridCam(cam); };
+    camList.appendChild(el);
+  });
+}
+
+async function selectCam(cam) {
+  currentCam = cam;
+  document.querySelectorAll('.cam-item').forEach(el => el.classList.toggle('active', el.id === 'cam-item-'+cam));
+  if (!camFilesCache[cam]) await fetchCamFiles(cam);
+  allFiles = camFilesCache[cam] || [];
+
+  if (isLiveMode) {
+    applyFilter();
+    playLive(); // re-point live stream to new cam
+  } else {
+    applyFilter();
+    if (isGridMode) { gridSlots[0] = cam; updateGridSlot(0); }
+  }
+}
+
+async function fetchCamFiles(cam) {
+  try {
+    const r = await fetch('/'+cam+'/');
+    const html = await r.text();
+    const doc = new DOMParser().parseFromString(html,'text/html');
+    camFilesCache[cam] = [...doc.querySelectorAll('a[href]')]
+      .map(a => decodeURIComponent(a.getAttribute('href')).split('/').pop())
+      .filter(h => h.endsWith('.mp4')).sort().reverse()
+      .filter(name => (PAGE_LOAD_TIME - parseFilename(name).getTime()) > CUTOFF_MS);
+  } catch(e) { camFilesCache[cam] = []; }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Filter
+// ─────────────────────────────────────────────────────────────────────────────
+function applyFilter() {
+  const from = filterFromVal() ? new Date(filterFromVal()).getTime() : 0;
+  const to   = filterToVal()   ? new Date(filterToVal()).getTime()   : Infinity;
+  filteredFiles = allFiles.filter(f => { const t = parseFilename(f).getTime(); return t >= from && t <= to; });
+  renderFileList();
+}
+
+document.getElementById('btn-filter-apply').onclick = applyFilter;
+document.getElementById('btn-filter-clear').onclick = () => { setDefaultFilters(); applyFilter(); };
+document.getElementById('m-btn-apply').onclick = () => { applyFilter(); closeDrawer(); };
+document.getElementById('m-btn-clear').onclick = () => { setDefaultFilters(); applyFilter(); closeDrawer(); };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// File list
+// ─────────────────────────────────────────────────────────────────────────────
+function renderFileList() {
+  fileCount.textContent = filteredFiles.length + ' clip' + (filteredFiles.length !== 1 ? 's' : '');
+  if (!filteredFiles.length) { fileList.innerHTML = '<div id="empty-state">No recordings found</div>'; return; }
+  fileList.innerHTML = '';
+
+  // ── LIVE entry at top ──
+  const liveEl = document.createElement('div');
+  liveEl.className = 'file-item live-item';
+  liveEl.dataset.idx = 'live';
+  liveEl.innerHTML = '<span class="file-time-big"><span class="live-dot"></span>LIVE</span><span class="file-dur">now</span>';
+  liveEl.onclick = e => { e.stopPropagation(); playLive(); };
+  fileList.insertBefore(liveEl, fileList.firstChild);
+  fileList.appendChild(liveEl); // will be first child after innerHTML=''
+  fileList.prepend(liveEl);
+
+  let lastDay = null;
+  filteredFiles.forEach((f, i) => {
+    const d = parseFilename(f), dk = dayKey(d);
+    if (dk !== lastDay) {
+      lastDay = dk;
+      const friendly = friendlyDay(d) || DAYS[d.getDay()].toUpperCase();
+      const h = document.createElement('div');
+      h.className = 'date-group-header';
+      h.innerHTML = friendly + `<div class="date-sub">${d.toLocaleDateString('en',{day:'numeric',month:'long',year:'numeric'})}</div>`;
+      fileList.appendChild(h);
+    }
+    const el = document.createElement('div');
+    el.className = 'file-item'; el.dataset.idx = i;
+    el.innerHTML = `<span class="file-time-big">${d.toTimeString().slice(0,5)}</span><span class="file-dur">15 min</span>`;
+    el.onclick = e => {
+      e.stopPropagation(); exitLiveMode(); playFile(i);
+      if (IS_MOBILE) closeDrawer();
+    };
+    fileList.appendChild(el);
+  });
+  if (!isLiveMode) playFile(0);
+  else { document.querySelectorAll('.file-item.live-item').forEach(el => el.classList.add('active')); document.getElementById('file-count').textContent = '● LIVE'; }
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Live streaming
+// ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Live streaming — pre-connect all cameras on load, kept alive in background
+// ─────────────────────────────────────────────────────────────────────────────
+
+
+function showLiveOnTarget(sourceVideo, targetVideo) {
+  // We can't clone a MediaSource across elements, so we replicate approach:
+  // just point targetVideo at same object URL — won't work cross-element.
+  // Instead: targetVideo mirrors sourceVideo via requestVideoFrameCallback
+  // Simple approach: mute source, assign same src blob won't work.
+  // Best working approach: assign a new fetch stream per visible target.
+  // We keep liveStreams as "warmed up" so the TCP connection is already open
+  // and buffering has started. For display we open a fresh MSE on the target.
+  connectLiveToVideo(targetVideo, sourceVideo._cam);
+}
+
+function connectLiveToVideo(targetVideo, cam) {
+  targetVideo._cam = cam;
+  const ms = new MediaSource();
+  targetVideo.src = URL.createObjectURL(ms);
+  let sb, queue = [], busy = false;
+
+  function pump() {
+    if (busy || !sb || sb.updating || !queue.length) return;
+    busy = true;
+    try { sb.appendBuffer(queue.shift()); } catch(e) { busy = false; }
+  }
+
+  ms.addEventListener('sourceopen', () => {
+    try { sb = ms.addSourceBuffer('video/mp4; codecs="avc1.42E01E"'); }
+    catch(e) { try { sb = ms.addSourceBuffer('video/mp4'); } catch(e2) { return; } }
+    sb.mode = 'sequence';
+    sb.addEventListener('updateend', () => {
+      busy = false;
+      if (!sb.updating && targetVideo.buffered.length) {
+        const end = targetVideo.buffered.end(targetVideo.buffered.length - 1);
+        if (end > 12) try { sb.remove(0, end - 10); } catch(e) {}
+      }
+      pump();
+    });
+    (async () => {
+      try {
+        const r = await fetch('/stream/' + cam);
+        if (!r.ok) return;
+        const reader = r.body.getReader();
+        targetVideo._reader = reader;
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          queue.push(value.buffer);
+          pump();
+        }
+      } catch(e) { console.warn('[live/' + cam + '] display stream ended'); }
+    })();
+  });
+
+  targetVideo.play().catch(() => {});
+}
+
+function stopLiveOnVideo(targetVideo) {
+  if (targetVideo._reader) {
+    try { targetVideo._reader.cancel(); } catch(e) {}
+    targetVideo._reader = null;
+  }
+  targetVideo.pause();
+  targetVideo.removeAttribute('src');
+}
+
+function playLive() {
+  isLiveMode = true;
+  currentFileIdx = -1;
+
+  // highlight live item, hide file list content
+  document.querySelectorAll('.file-item').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.file-item.live-item').forEach(el => el.classList.add('active'));
+  // hide the recordings list, show live indicator
+  document.getElementById('file-count').textContent = '● LIVE';
+
+  if (!isGridMode) {
+    stopLiveOnVideo(video);
+    connectLiveToVideo(video, currentCam);
+    video.muted = false; // ensure audio for single view
+    document.getElementById('cam-badge').textContent = currentCam + ' · LIVE';
+    document.getElementById('cam-badge').style.display = 'block';
+    document.getElementById('ts-badge').style.display = 'none';
+    document.getElementById('speed-badge').style.display = 'none';
+    btnPlay.innerHTML = '&#9646;&#9646; PAUSE';
+  } else {
+    // grid live: each slot gets its own live stream, no recordings
+    gridSlots.forEach((cam, i) => {
+      if (!cam || !gridVideos[i]) return;
+      stopLiveOnVideo(gridVideos[i]);
+      connectLiveToVideo(gridVideos[i], cam);
+      gridVideos[i].muted = (i !== 0); // only slot 0 has audio
+      const ts = document.getElementById('gts-' + i);
+      if (ts) ts.textContent = '● LIVE';
+    });
+  }
+  showControls();
+}
+
+function exitLiveMode() {
+  isLiveMode = false;
+  // stop any live display streams
+  stopLiveOnVideo(video);
+  gridVideos.forEach(v => { if (v) stopLiveOnVideo(v); });
+  document.getElementById('file-count').textContent = '';
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Single playback
+// ─────────────────────────────────────────────────────────────────────────────
+function playFile(idx) {
+  if (idx < 0 || idx >= filteredFiles.length) return;
+  currentFileIdx = idx;
+  document.querySelectorAll('.file-item').forEach(el => el.classList.toggle('active', parseInt(el.dataset.idx) === idx));
+  document.querySelector(`.file-item[data-idx="${idx}"]`)?.scrollIntoView({block:'nearest'});
+  const filename = filteredFiles[idx];
+  const d = parseFilename(filename);
+  if (!isGridMode) {
+    video.src = `/${currentCam}/${filename}`;
+    document.getElementById('cam-badge').textContent = currentCam;
+    document.getElementById('cam-badge').style.display = 'block';
+    document.getElementById('ts-badge').textContent = d.toLocaleString('sv');
+    document.getElementById('ts-badge').style.display = 'block';
+    document.getElementById('speed-badge').style.display = 'block';
+    video.play().then(() => { video.playbackRate = currentSpeed; btnPlay.innerHTML = '&#9646;&#9646; PAUSE'; }).catch(() => {});
+  } else {
+    gridPlayAtTime(d);
+  }
+}
+
+video.addEventListener('timeupdate', () => {
+  if (!isGridMode && video.duration) {
+    document.getElementById('progress').value = Math.round((video.currentTime/video.duration)*1000);
+    document.getElementById('time-display').textContent = fmt(video.currentTime)+' / '+fmt(video.duration);
+  }
+});
+video.addEventListener('ended', () => {
+  if (!isGridMode) { const n = currentFileIdx+1; if (n < filteredFiles.length) playFile(n); else { btnPlay.innerHTML='&#9654; PLAY'; showControls(); } }
+});
+video.addEventListener('playing', () => { if (!isGridMode) { video.playbackRate = currentSpeed; document.getElementById('speed-badge').textContent='x'+currentSpeed; } });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Grid
+// ─────────────────────────────────────────────────────────────────────────────
+function toggleGridCam(cam) {
+  if (!isGridMode) return;
+  const existing = gridSlots.indexOf(cam);
+  if (existing === 0) return;
+  if (existing > 0) {
+    gridSlots[existing] = null; updateGridSlot(existing);
+    document.getElementById('check-'+cam).classList.remove('checked');
+  } else {
+    const free = gridSlots.findIndex((s,i) => i > 0 && i < MAX_GRID && s === null);
+    if (free === -1) return;
+    gridSlots[free] = cam; updateGridSlot(free);
+    document.getElementById('check-'+cam).classList.add('checked');
+  }
+}
+
+function updateGridSlot(idx) {
+  const cell = document.getElementById('slot-'+idx);
+  const cam  = gridSlots[idx];
+  if (!cam) { cell.innerHTML = `<div class="grid-cell-empty">SLOT ${idx+1}</div>`; gridVideos[idx]=null; cell.classList.remove('slot-active'); return; }
+  cell.innerHTML = `<video preload="auto" playsinline ${idx>0?'muted':''}></video><div class="grid-cell-label">${cam}</div><div class="grid-cell-ts" id="gts-${idx}"></div><div class="grid-cell-fs" onclick="gridFullscreen(${idx})">⛶</div>`;
+  const vid = cell.querySelector('video');
+  gridVideos[idx] = vid;
+  loadGridSlotFile(idx, cam);
+}
+
+async function loadGridSlotFile(idx, cam) {
+  const vid = gridVideos[idx]; if (!vid) return;
+  if (!camFilesCache[cam]) await fetchCamFiles(cam);
+  const files = camFilesCache[cam] || []; if (!files.length) return;
+  const refMs = (currentFileIdx >= 0 && filteredFiles[currentFileIdx]) ? parseFilename(filteredFiles[currentFileIdx]).getTime() : Date.now();
+  const best = findBestFile(files, refMs); if (!best) return;
+  const d = parseFilename(best);
+  vid.src = `/${cam}/${best}`;
+  const offset = Math.max(0,(refMs-d.getTime())/1000);
+  vid.addEventListener('loadedmetadata', () => { vid.currentTime = Math.min(offset, vid.duration-1); vid.playbackRate=currentSpeed; if(idx===0) updateProgressFromVideo(vid); }, {once:true});
+  vid.play().catch(()=>{});
+  vid.addEventListener('timeupdate', () => {
+    const ts = document.getElementById('gts-'+idx); if(ts) ts.textContent = d.toTimeString().slice(0,5)+' +'+Math.floor(vid.currentTime)+'s';
+    if(idx===0) updateProgressFromVideo(vid);
+  });
+  vid.addEventListener('ended', () => {
+    const fi = files.indexOf(best); if(fi < files.length-1) loadGridSlotFileDirect(idx,cam,files[fi+1]);
+  });
+}
+
+function loadGridSlotFileDirect(idx, cam, filename) {
+  const vid = gridVideos[idx]; if (!vid) return;
+  const d = parseFilename(filename);
+  vid.src = `/${cam}/${filename}`;
+  vid.play().then(()=>{ vid.playbackRate=currentSpeed; }).catch(()=>{});
+  vid.addEventListener('timeupdate', () => { const ts=document.getElementById('gts-'+idx); if(ts) ts.textContent=d.toTimeString().slice(0,5)+' +'+Math.floor(vid.currentTime)+'s'; });
+}
+
+function updateProgressFromVideo(vid) {
+  if (vid.duration) {
+    document.getElementById('progress').value = Math.round((vid.currentTime/vid.duration)*1000);
+    document.getElementById('time-display').textContent = fmt(vid.currentTime)+' / '+fmt(vid.duration);
+  }
+}
+
+function findBestFile(files, targetMs) {
+  for (const f of files) { if (parseFilename(f).getTime() <= targetMs) return f; }
+  return files[files.length-1] || null;
+}
+
+function gridPlayAtTime(refDate) { gridSlots.forEach((cam,i) => { if(cam) loadGridSlotFile(i,cam); }); }
+
+function syncGrid() {
+  const pv = gridVideos[0]; if (!pv || pv.paused) return;
+  gridSlots.forEach((cam,i) => {
+    if (i===0 || !gridVideos[i]) return;
+    if (Math.abs(gridVideos[i].currentTime - pv.currentTime) > SYNC_TOL) gridVideos[i].currentTime = pv.currentTime;
+  });
+}
+setInterval(syncGrid, 5000);
+
+function setActiveGridSlot(slot) { document.querySelectorAll('.grid-cell').forEach((c,i) => c.classList.toggle('slot-active',i===slot)); }
+function gridFullscreen(idx) { const cell=document.getElementById('slot-'+idx); document.fullscreenElement?document.exitFullscreen():cell.requestFullscreen(); }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// View toggle
+// ─────────────────────────────────────────────────────────────────────────────
+document.getElementById('btn-single').onclick = () => {
+  isGridMode=false; document.body.classList.remove('grid-mode');
+  document.getElementById('btn-single').classList.add('active');
+  document.getElementById('btn-grid').classList.remove('active');
+  document.querySelectorAll('.cam-check').forEach(el=>{ el.classList.remove('checked'); el.textContent='✓'; });
+  syncStatus.textContent=''; showControls();
+};
+document.getElementById('btn-grid').onclick = () => {
+  isGridMode=true; document.body.classList.add('grid-mode');
+  document.getElementById('btn-grid').classList.add('active');
+  document.getElementById('btn-single').classList.remove('active');
+  gridSlots=[currentCam,null,null,null]; gridVideos=[null,null,null,null];
+  for(let i=0;i<4;i++) updateGridSlot(i);
+  document.querySelectorAll('.cam-check').forEach(el=>{ el.classList.remove('checked'); el.textContent='✓'; });
+  const ch=document.getElementById('check-'+currentCam); if(ch){ch.classList.add('checked');ch.textContent='★';}
+  syncStatus.textContent='SYNC ±'+SYNC_TOL+'s';
+  if (isLiveMode) playLive();
+  showControls();
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Unified controls
+// ─────────────────────────────────────────────────────────────────────────────
+function getActiveVideos() { return isGridMode ? gridVideos.filter(Boolean) : [video]; }
+
+function togglePlay() {
+  const vids=getActiveVideos(); if(!vids.length) return;
+  const paused=vids[0].paused;
+  vids.forEach(v => paused ? v.play().then(()=>{v.playbackRate=currentSpeed;}).catch(()=>{}) : v.pause());
+  btnPlay.innerHTML = paused ? '&#9646;&#9646; PAUSE' : '&#9654; PLAY';
+  if (!paused) showControls();
+}
+
+function seek(secs) {
+  getActiveVideos().forEach(v => { v.currentTime=Math.max(0,Math.min(v.duration||0,v.currentTime+secs)); });
+  flashSeek((secs>0?'+':'')+secs+'s');
+}
+
+function setSpeed(s) {
+  currentSpeed=s; getActiveVideos().forEach(v=>v.playbackRate=s);
+  document.getElementById('speed-badge').textContent='x'+s;
+  document.querySelectorAll('.spd-btn').forEach(b=>b.classList.toggle('active',Number(b.dataset.speed)===s));
+}
+
+function fmt(s) { const m=Math.floor(s/60),sec=Math.floor(s%60); return String(m).padStart(2,'0')+':'+String(sec).padStart(2,'0'); }
+
+document.getElementById('progress').oninput = e => { getActiveVideos().forEach(v=>{ if(v.duration) v.currentTime=(e.target.value/1000)*v.duration; }); };
+btnPlay.onclick = e => { e.stopPropagation(); togglePlay(); };
+document.getElementById('btn-prev').onclick = e => { e.stopPropagation(); if(!isGridMode) playFile(currentFileIdx+1); };
+document.getElementById('btn-next').onclick = e => { e.stopPropagation(); if(!isGridMode) playFile(currentFileIdx-1); };
+document.querySelectorAll('.spd-btn').forEach(b => b.onclick = e => { e.stopPropagation(); setSpeed(Number(b.dataset.speed)); });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Camera switch
+// ─────────────────────────────────────────────────────────────────────────────
+function switchCam(dir) { const i=camNames.indexOf(currentCam),n=i+dir; if(n>=0&&n<camNames.length) selectCam(camNames[n]); }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Keyboard (desktop only)
+// ─────────────────────────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (IS_MOBILE || e.target.tagName==='INPUT') return;
+  showControls();
+  if (e.key===' ')          { e.preventDefault(); togglePlay(); return; }
+  if (e.key==='f'||e.key==='F') { document.fullscreenElement?document.exitFullscreen():playerWrap.requestFullscreen(); return; }
+  if (e.key==='ArrowLeft')  { e.preventDefault(); seek(e.shiftKey?-3:-10); return; }
+  if (e.key==='ArrowRight') { e.preventDefault(); seek(e.shiftKey?3:10); return; }
+  if (e.key==='ArrowUp')    { e.preventDefault(); e.shiftKey?switchCam(-1):(!isGridMode&&playFile(currentFileIdx-1)); return; }
+  if (e.key==='ArrowDown')  { e.preventDefault(); e.shiftKey?switchCam(1):(!isGridMode&&playFile(currentFileIdx+1)); return; }
+  if (e.key==='+'||e.key==='=') { const i=SPEEDS.indexOf(currentSpeed); if(i<SPEEDS.length-1) setSpeed(SPEEDS[i+1]); }
+  if (e.key==='-')           { const i=SPEEDS.indexOf(currentSpeed); if(i>0) setSpeed(SPEEDS[i-1]); }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Init
+// ─────────────────────────────────────────────────────────────────────────────
+setDefaultFilters();
+loadCameras();
+</script>
+</body>
+</html>

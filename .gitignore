@@ -1,0 +1,17 @@
+# credentials — never commit your real config
+config.json
+
+# logs
+*.log
+
+# python
+__pycache__/
+*.pyc
+*.pyo
+
+# editor junk
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store

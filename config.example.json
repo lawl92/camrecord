@@ -1,0 +1,18 @@
+{
+  "output_base": "/mnt/recordings",
+  "cameras": [
+    {
+      "name": "frontdoor",
+      "url": "rtsp://admin:password@192.168.1.100:554/cam/realmonitor?channel=1&subtype=0&unicast=true&proto=Onvif"
+    },
+    {
+      "name": "backyard",
+      "url": "rtsp://admin:password@192.168.1.101:554/cam/realmonitor?channel=1&subtype=0&unicast=true&proto=Onvif"
+    },
+    {
+      "name": "garage",
+      "url": "rtsp://admin:password@192.168.1.102:554/Streaming/Channels/101/",
+      "transcode_audio": true
+    }
+  ]
+}
