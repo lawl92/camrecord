@@ -1,4 +1,6 @@
-RETAIN_DAYS="${1:-10}"
+#!/usr/bin/env bash
+
+RETAIN_DAYS="${1:-9}"
 OUTPUT_BASE="/bigboi/camara"
 
 log() { echo "[$(date '+%Y-%m-%dT%H:%M:%S')] $*"; }
